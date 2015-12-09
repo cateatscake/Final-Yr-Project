@@ -1,0 +1,39 @@
+XE =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = Cosmos)(PORT = 1521))
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = XE)
+    )
+  )
+  
+AWS = 
+(DESCRIPTION = 
+	(ADDRESS = (PROTOCOL=TCP)(HOST = dre-hub.cdgtfiduslt3.us-west-2.rds.amazonaws.com) (PORT = 1521))
+	(CONNECT_DATA =
+		(SERVICE_NAME = HUB)
+	)
+)
+
+
+EXTPROC_CONNECTION_DATA =
+  (DESCRIPTION =
+    (ADDRESS_LIST =
+      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC1))
+    )
+    (CONNECT_DATA =
+      (SID = PLSExtProc)
+      (PRESENTATION = RO)
+    )
+  )
+
+ORACLR_CONNECTION_DATA = 
+  (DESCRIPTION = 
+    (ADDRESS_LIST = 
+      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC1)) 
+    ) 
+    (CONNECT_DATA = 
+      (SID = CLRExtProc) 
+      (PRESENTATION = RO) 
+    ) 
+  ) 
