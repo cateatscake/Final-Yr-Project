@@ -1,0 +1,10 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+--CREATE SYNONYM query_perf FOR query_plan@hub;
+--CREATE SYNONYM hub_proc FOR monitor@hub;
+CREATE SYNONYM db_perf FOR db_plan@hub;
+CREATE SYNONYM cl_rec_flags FOR rec_flags@hub;
+CREATE SYNONYM cl_q_list FOR query_list@hub;
+

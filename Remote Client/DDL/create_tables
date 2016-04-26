@@ -1,0 +1,15 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+CREATE TABLE db_plan (
+  scan_id    INTEGER NULL,
+  query_id   INTEGER NULL,
+  total_size NUMBER  NULL,
+  free_space NUMBER  NULL,
+  space_used NUMBER  NULL,
+  perc       NUMBER  NULL,
+  scandate   DATE    NULL
+);
+
+

@@ -1,0 +1,174 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+CREATE OR REPLACE PACKAGE monitor
+IS
+    PROCEDURE SETUP(p_query IN VARCHAR2);
+    PROCEDURE GENERATE_PLAN(p_q_id IN INTEGER);
+    PROCEDURE RECOMMEND(p_q_id IN INTEGER);
+    PROCEDURE MAKE_CHANGES(p_q_id IN INTEGER, p_index_name IN VARCHAR2);
+
+END MONITOR;
+/
+
+PROMPT CREATE OR REPLACE PACKAGE BODY monitor
+CREATE OR REPLACE PACKAGE BODY monitor
+IS
+   PROCEDURE SETUP (p_query IN VARCHAR2)
+   IS
+    v_query    varchar2(600) :=  upper (p_query);
+    v_q_id  INTEGER;
+    v_flag integer;
+    v_object VARCHAR2(50);
+
+  BEGIN
+
+    SELECT Max(q_id) INTO v_q_id FROM query_list;
+      IF v_q_id > 0
+      THEN
+        SELECT Count(*) INTO v_flag FROM query_list WHERE v_query LIKE q_content;
+        IF v_flag = 0
+        THEN
+          v_q_id := v_q_id + 1;
+          INSERT INTO query_list(q_id, q_content, date_added) VALUES(v_q_id, v_query, SYSDATE);
+        END IF;
+      --If there are no previous entries
+      ELSE
+        v_q_id := 1;
+        INSERT INTO query_list(q_id, q_content, date_added) VALUES(v_q_id, v_query, SYSDATE);
+      END IF;
+
+    --Check if scheduled job exists
+    --Query id is appended to job name for distinction
+    v_object := 'MONITOR_Q_'||v_q_id;
+    SELECT COUNT(*) INTO v_flag FROM user_scheduler_jobs WHERE job_name = v_object;
+    IF V_FLAG = 0
+      THEN
+        DBMS_SCHEDULER.CREATE_JOB (
+            job_name =>'MONITOR_Q_'||v_q_id,
+            job_type =>'PLSQL_BLOCK',--'PLSQL_BLOCK',',
+            job_action =>'BEGIN MONITOR.GENERATE_PLAN('||v_q_id||'); END;',
+            start_date => SYSDATE,
+            repeat_interval => 'FREQ=DAILY;',-- INTERVAL=2',
+            end_date => null);
+
+        DBMS_SCHEDULER.ENABLE (
+            name => 'MONITOR_Q_'||v_q_id);
+    END IF;
+
+    --Calls next procedure
+    GENERATE_PLAN(v_q_id);
+
+  END;
+
+  PROCEDURE GENERATE_PLAN(p_q_id IN INTEGER)
+  IS
+    v_q_id  INTEGER := p_q_id;
+  BEGIN
+    --Executes performance analysis on remote db
+    cl_proc(v_q_id);
+    COMMIT;
+  END;
+
+  --Procedure to generate recommendations based on indexes
+  PROCEDURE RECOMMEND(p_q_id IN INTEGER)
+  IS
+    v_q_id  INTEGER := p_q_id;
+    v_query    varchar2(600);
+
+    v_ind varchar2(50);
+    v_column varchar2(500);
+    v_scan_id NUMBER;
+    v_plan_id NUMBER;
+    v_ind_name VARCHAR2(50);
+
+    v_flag INTEGER;
+    v_count_tab INTEGER;
+    v_count_ind INTEGER;
+
+    v_sys_ind INTEGER;
+    v_table VARCHAR2(50);
+
+    CURSOR tables
+    IS
+      SELECT table_name FROM query_plan WHERE query_id = v_q_id AND scan_id = v_scan_id;
+
+    CURSOR index_list
+    IS
+      SELECT index_name, column_name, table_name FROM cl_ind_cols;
+
+  BEGIN
+
+  --Remove previous entries for this query
+  DELETE FROM rec_flags WHERE q_id = v_q_id;
+  COMMIT;
+
+  SELECT Max(scan_id) INTO v_scan_id FROM query_plan WHERE query_id = v_q_id;
+  --Check for indexes that have sys in the name
+  SELECT Count(query_id) INTO v_sys_ind FROM query_plan WHERE query_id = v_q_id AND scan_id = v_scan_id AND operation_performed LIKE '%INDEX%';
+
+  --Loop to determine if the query has an index declared on it or not
+  FOR name IN tables
+  LOOP
+    SELECT Count(table_name) INTO v_count_tab FROM cl_ind_cols WHERE table_name = name.table_name;
+    SELECT Count(index_name) INTO v_count_ind FROM cl_ind_cols WHERE index_name = name.table_name;
+
+    --If theres an index on a column in the table
+    IF v_count_tab > 0
+    THEN
+      FOR ind IN index_list
+      LOOP
+        --If an index table_name is the same as the table name
+        IF ind.table_name = name.table_name
+          THEN
+          Dbms_Output.put_line('index found');
+          INSERT INTO rec_flags (q_id, ind_name, col_name, table_name, ind_type) VALUES (v_q_id,
+                                ind.index_name,
+                                ind.column_name,
+                                ind.table_name,
+                                (SELECT UNIQUE constraint_type FROM cl_cons WHERE table_name = ind.table_name AND constraint_name = ind.index_name));
+          Dbms_Output.put_line('inserted');
+          --Procedure on the remote database now checks if the index is used or not and updates the rec_flags table
+          INDEX_CHECK(v_q_id);
+        END IF;
+      END LOOP;
+
+    --Essentially the same but for indexes with a SYS name
+    ELSIF v_count_ind > 0
+    THEN
+      FOR ind IN index_list
+      LOOP
+        IF ind.index_name = name.table_name
+        THEN
+          Dbms_Output.put_line('query has index but is sys name');
+          INSERT INTO rec_flags(q_id, ind_name, col_name, table_name, ind_type)
+          (SELECT v_q_id,
+                  index_name,
+                  column_name,
+                  table_name,
+                  (SELECT UNIQUE constraint_type FROM cl_cons WHERE table_name = ind.table_name AND constraint_name = ind.index_name)
+              FROM cl_ind_cols WHERE index_name = ind.index_name);
+          INDEX_CHECK(v_q_id);
+        END IF;
+      END LOOP;
+
+    ELSE
+      dbms_output.put_line('no index found');
+    END IF;
+  END LOOP;
+
+  END;
+  PROCEDURE MAKE_CHANGES(p_q_id IN INTEGER, p_index_name IN VARCHAR2)
+  IS
+    v_q_id  INTEGER := p_q_id;
+    v_index_name VARCHAR2(50) := p_index_name;
+
+  BEGIN
+    --Calls drop index procedure on remote db
+    DROP_INDEX(v_q_id, v_index_name);
+  END;
+
+END MONITOR;
+/
+

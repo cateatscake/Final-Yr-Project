@@ -1,0 +1,101 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+PROMPT CREATE OR REPLACE PROCEDURE index_check
+--Procedure to determine if an index on a query is being used
+CREATE OR REPLACE PROCEDURE index_check(p_q_id IN INTEGER)
+IS
+  v_query    varchar2(600);
+  v_scan_id NUMBER;
+  v_prev_scan_id NUMBER;
+  v_plan_id NUMBER;
+  v_q_id  INTEGER := p_q_id;
+  v_flag INTEGER;
+  v_status VARCHAR2(3);
+  v_ind_name  varchar2(50);
+
+  v_query_part VARCHAR2(600);
+
+  --time stuff
+    v_time_ex VARCHAR2(20);
+    v_time_com  VARCHAR2(20);
+    v_time_taken VARCHAR2(20);
+    v_prev_time_taken VARCHAR2(20);
+
+    v_ex_hr INTEGER;
+    v_ex_m INTEGER;
+    v_ex_s FLOAT;
+    v_co_hr integer;
+    v_co_m INTEGER;
+    v_co_s FLOAT;
+
+  CURSOR list
+  IS
+    SELECT q_id, ind_name, table_name, ind_flag FROM cl_rec_flags WHERE q_id = v_q_id;
+
+  CURSOR ind_found
+  IS
+    SELECT * FROM cl_rec_flags WHERE q_id = v_q_id;
+
+  BEGIN
+
+  SELECT Upper(q_content) INTO v_query FROM cl_q_list WHERE q_id = v_q_id;
+
+  FOR ind IN list
+  LOOP
+
+    --Enale monitoring on the index
+    EXECUTE IMMEDIATE 'ALTER INDEX '||ind.ind_name||' MONITORING USAGE';
+
+    EXECUTE IMMEDIATE v_query;
+    SELECT used INTO v_status FROM v$object_usage WHERE index_name = ind.ind_name;
+
+    --Check if index was used or not
+    IF v_status = 'YES'
+    THEN
+      Dbms_Output.put_line('the index '||ind.ind_name||' is being used by this query');
+      UPDATE cl_rec_flags SET ind_flag = 1 WHERE q_id = v_q_id;
+
+      --If it was used, we want the execution time of a query WITHOUT the index
+      FOR i IN ind_found
+      LOOP
+        SELECT Upper( SubStr(v_query, 8)) INTO v_query_part FROM dual;
+        --Gives hint to not use that particular query
+        v_query := 'SELECT /*+ NO_INDEX('||i.table_name||' '||i.ind_name||') */ '||v_query_part;
+
+        SELECT extract (HOUR FROM systimestamp) INTO v_ex_hr FROM dual;
+        SELECT extract (MINUTE FROM systimestamp) INTO v_ex_m FROM dual;
+        SELECT extract (SECOND FROM systimestamp) INTO v_ex_s FROM dual;
+        SELECT ''||v_ex_hr||':'||v_ex_m||':'||v_ex_s||'' INTO v_time_ex FROM dual;
+
+        EXECUTE IMMEDIATE v_query;
+
+
+        SELECT extract (HOUR FROM systimestamp) INTO v_co_hr FROM dual;
+        SELECT extract (MINUTE FROM systimestamp) INTO v_co_m FROM dual;
+        SELECT extract (SECOND FROM systimestamp) INTO v_co_s FROM dual;
+
+        SELECT ''||v_co_hr||':'||v_co_m||':'||v_co_s||'' INTO v_time_com FROM dual;
+        SELECT ''||Sum(v_co_hr - v_ex_hr)||''||Sum(v_co_m - v_ex_m)||''||Sum(v_co_s - v_ex_s)||'' INTO v_time_taken FROM dual;
+        v_time_taken := (v_time_taken * 1000);
+
+        --The put the time in the rec_flags table on hub, this is then used to determine if there was an improvement or not
+        UPDATE cl_rec_flags SET time_executed = v_time_ex, time_completed = v_time_com, time_taken = v_time_taken
+        WHERE q_id = v_q_id;
+      END LOOP;
+
+    --No index is being used
+    ELSE
+      dbms_output.put_line('the index '||ind.ind_name||' is not being used');
+      UPDATE cl_rec_flags SET ind_flag = 0 WHERE q_id = v_q_id;
+    END IF;
+
+    --Stop monitoring the index
+    EXECUTE IMMEDIATE 'ALTER INDEX '||ind.ind_name||' NOMONITORING usage';
+  END LOOP;
+
+  COMMIT;
+END;
+/
+

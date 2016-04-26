@@ -1,0 +1,47 @@
+--PROMPT CREATE TABLE rec_flags
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+CREATE TABLE rec_flags (
+  q_id           INTEGER,
+  ind_name       VARCHAR2(50),
+  col_name       VARCHAR2(50),
+  table_name     VARCHAR2(50),
+  ind_type       VARCHAR2(2),
+  ind_flag       INTEGER,
+  time_executed  VARCHAR2(20),
+  time_completed VARCHAR2(20),
+  time_taken     NUMBER
+);
+
+CREATE TABLE query_list (
+  q_id       INTEGER,
+  q_content  VARCHAR2(500),
+  date_added DATE
+);
+
+CREATE TABLE db_plan (
+  scan_id    INTEGER,
+  query_id   INTEGER,
+  total_size NUMBER,
+  free_space NUMBER,
+  space_used NUMBER,
+  perc       NUMBER,
+  scandate   DATE
+);
+
+CREATE TABLE query_plan (
+  scan_id             INTEGER,
+  query_id            INTEGER,
+  table_name          VARCHAR2(30),
+  operation_performed VARCHAR2(500),
+  rows_accessed       INTEGER,
+  bytes               INTEGER,
+  date_generated      DATE,
+  time_executed       VARCHAR2(20),
+  time_completed      VARCHAR2(20),
+  time_taken          NUMBER,
+  status              VARCHAR2(10)
+);
+
+

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<meta http-equiv="x-ua-compatible" content="IE=edge" />
+
+<!----Author: Grace Sutton-->
+<!----C12408218-->
+<!----06/04/2016-->
+
+<!--This is the main layout for each page of the application. 
+It is created and customised through apex by creating a 'template'.
+Templates are then applied to pages.
+Most of the modifications such as positions and creating divs can be done from the workspace without the need to code.
+The template is then updated to reflect the new items on that page only.
+There is really not much use for modifying this HTML, the CSS is really the part I worked on. -->
+
+<!--[if lt IE 7]><html class="no-js lt-ie10 lt-ie9 lt-ie8 lt-ie7" lang="&BROWSER_LANGUAGE."> <![endif]-->
+<!--[if IE 7]><html class="no-js lt-ie10 lt-ie9 lt-ie8" lang="&BROWSER_LANGUAGE."> <![endif]-->
+<!--[if IE 8]><html class="no-js lt-ie10 lt-ie9" lang="&BROWSER_LANGUAGE."> <![endif]-->
+<!--[if IE 9]><html class="no-js lt-ie10" lang="&BROWSER_LANGUAGE."> <![endif]-->
+<!--[if gt IE 9]><!--> <html class="no-js" lang="&BROWSER_LANGUAGE."> <!--<![endif]-->
+<head>
+  <meta charset="utf-8">  
+  <title>#TITLE#</title>
+  #APEX_CSS#
+  #THEME_CSS#
+  #TEMPLATE_CSS#
+  #THEME_STYLE_CSS#
+  #APPLICATION_CSS#
+  #PAGE_CSS#  
+  #FAVICONS#
+  #HEAD#
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+</head>
+<body class="t-PageBody t-PageBody--hideLeft t-PageBody--hideActions no-anim #PAGE_CSS_CLASSES# t-PageBody--noNav" #ONLOAD# id="t_PageBody">
+#FORM_OPEN#
+<header class="t-Header" id="t_Header">
+  #REGION_POSITION_07#
+  <div class="t-Header-branding">
+    <div class="t-Header-controls">
+      <button class="t-Button t-Button--icon t-Button--header t-Button--headerTree" id="t_Button_navControl" type="button"><span class="t-Icon fa-bars" aria-hidden="true"></span></button>
+    </div>
+    <div class="t-Header-logo">
+      <a href="#HOME_LINK#" class="t-Header-logo-link">#LOGO#</a>
+    </div>
+    <div class="t-Header-navBar">
+      #NAVIGATION_BAR#
+    </div>
+  </div>
+</header>
+<div class="t-Body">
+  <div class="t-Body-main">
+      <div class="t-Body-title" id="t_Body_title">
+        #REGION_POSITION_01#
+      </div>
+      <div class="t-Body-content" id="t_Body_content">
+        #SUCCESS_MESSAGE##NOTIFICATION_MESSAGE##GLOBAL_NOTIFICATION#
+        <div class="t-Body-contentInner">
+          #BODY#
+        </div>
+        <footer class="t-Footer">
+          #APP_VERSION#
+          #CUSTOMIZE#
+          #SCREEN_READER_TOGGLE#
+          #REGION_POSITION_05#
+        </footer>
+      </div>
+  </div>
+</div>
+<div class="t-Body-inlineDialogs">
+  #REGION_POSITION_04#
+</div>
+    

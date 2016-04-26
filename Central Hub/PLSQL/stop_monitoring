@@ -1,0 +1,19 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+CREATE OR REPLACE PROCEDURE stop_monitoring(p_q_id IN INTEGER)
+    IS
+      v_q_id INTEGER := p_q_id;
+    BEGIN
+      DBMS_SCHEDULER.DISABLE ( name => 'Monitor_Q_'||v_q_id);
+      DBMS_SCHEDULER.DROP_JOB ( job_name => 'MONITOR_Q_'||v_q_id);
+
+      DELETE FROM query_list WHERE q_id = v_q_id;
+      DELETE FROM query_plan WHERE query_id = v_q_id;
+      DELETE FROM db_plan WHERE query_id = v_q_id;
+      COMMIT;
+
+    END;
+    /
+

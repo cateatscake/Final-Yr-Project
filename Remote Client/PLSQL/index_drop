@@ -1,0 +1,33 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+PROMPT CREATE OR REPLACE PROCEDURE index_drop
+--Procedure that drops an index, called by the hub procedure
+CREATE OR REPLACE PROCEDURE index_drop(p_q_id IN INTEGER, p_index_name IN VARCHAR2)
+IS
+  v_q_id  INTEGER := p_q_id;
+  v_index_name VARCHAR2(50) := p_index_name;
+  v_count INTEGER;
+
+  CURSOR list
+  IS
+    SELECT * FROM cl_rec_flags WHERE q_id = v_q_id AND ind_name = v_index_name;
+
+  BEGIN
+
+  FOR i IN list
+  LOOP
+    EXECUTE IMMEDIATE 'ALTER TABLE '||i.table_name||' DROP CONSTRAINT '||i.ind_name;
+    --Sometimes an index will remain after constraint is dropped, this is to prevent that
+    SELECT Count(index_name) INTO v_count FROM user_ind_columns where index_name = i.ind_name;
+    IF v_count > 0
+    THEN
+      EXECUTE IMMEDIATE 'DROP INDEX '||i.ind_name;
+    END IF;
+  END LOOP;
+
+  COMMIT;
+END;
+/
+

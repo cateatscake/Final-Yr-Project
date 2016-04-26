@@ -1,0 +1,228 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+PROMPT CREATE OR REPLACE PROCEDURE cl_perf
+--Main function for the remote database
+--Calculates the execution time of queries and updates the central database
+CREATE OR REPLACE PROCEDURE cl_perf (p_q_id IN INTEGER)
+IS
+    v_query    varchar2(600);
+
+    v_scan_id NUMBER;
+    v_prev_scan_id NUMBER;
+    v_plan_id NUMBER;
+    v_q_id  INTEGER := p_q_id;
+    v_flag INTEGER;
+    v_status VARCHAR2(10);
+
+    --time stuff
+    v_time_ex VARCHAR2(20);
+    v_time_com  VARCHAR2(20);
+    v_time_taken VARCHAR2(20);
+    v_prev_time_taken VARCHAR2(20);
+
+    v_ex_hr INTEGER;
+    v_ex_m INTEGER;
+    v_ex_s FLOAT;
+    v_co_hr integer;
+    v_co_m INTEGER;
+    v_co_s FLOAT;
+
+    v_used  NUMBER;
+
+BEGIN
+
+  SELECT Upper(q_content) INTO v_query FROM cl_q_list WHERE q_id = v_q_id;
+  --Sometime the = symbol causes issues so I replace it with this
+  SELECT REPLACE(v_query, '%3D', '=') INTO v_query FROM dual;
+
+  --This checks that a query can be executed
+  --If it can, the rest of the procedure executes
+  EXECUTE IMMEDIATE 'SELECT Count(*) INTO '||v_count||' FROM ('||v_query||')';
+
+  IF v_count > 0
+  THEN
+    --Get latest scan from table (for differentiating)
+	  SELECT Max(scan_id) INTO v_scan_id FROM query_perf;
+    IF v_scan_id > 0
+      THEN
+        v_scan_id := v_scan_id + 1;
+    ELSE
+      v_scan_id := 1;
+    END IF;
+
+    --Calculate time for execution
+    --Here I extract the hr, min and sec from the current time
+    SELECT extract (HOUR FROM systimestamp) INTO v_ex_hr FROM dual;
+    SELECT extract (MINUTE FROM systimestamp) INTO v_ex_m FROM dual;
+    SELECT extract (SECOND FROM systimestamp) INTO v_ex_s FROM dual;
+    --I then concatenate these values into a string
+    SELECT ''||v_ex_hr||':'||v_ex_m||':'||v_ex_s||'' INTO v_time_ex FROM dual;
+    --Dbms_Output.put_line('time before: '||v_time_ex);
+
+    --Execute the query
+    EXECUTE IMMEDIATE v_query;
+
+    --These are time values for when the query execution is complete
+    SELECT extract (HOUR FROM systimestamp) INTO v_co_hr FROM dual;
+    SELECT extract (MINUTE FROM systimestamp) INTO v_co_m FROM dual;
+    SELECT extract (SECOND FROM systimestamp) INTO v_co_s FROM dual;
+
+    SELECT ''||v_co_hr||':'||v_co_m||':'||v_co_s||'' INTO v_time_com FROM dual;
+    --I then perform calculations to determine the time difference
+    SELECT ''||Sum(v_co_hr - v_ex_hr)||''||Sum(v_co_m - v_ex_m)||''||Sum(v_co_s - v_ex_s)||'' INTO v_time_taken FROM dual;
+    --Mutliplied to obtain milliseconds
+    v_time_taken := (v_time_taken * 1000);
+
+    --Here I am checking to see if this query has been monitored before
+    --This is so that the vey first scan will alwas say no change, not that there was an increase or decrease
+    SELECT Count(scan_id) INTO v_flag FROM query_perf WHERE query_id = v_q_id;
+    IF (v_flag = 0)
+    THEN
+      v_status := 'No change';
+    ELSE
+      SELECT Max(scan_id) INTO v_prev_scan_id FROM query_perf WHERE query_id = v_q_id AND scan_id != v_scan_id;
+      SELECT time_taken INTO v_prev_time_taken FROM query_perf WHERE scan_id = v_prev_scan_id;
+
+      --Now check the latest time againast the previous and determine if performance has increased or decreased
+      IF (v_time_taken > v_prev_time_taken)
+      THEN
+        v_status := 'Decreased';
+      ELSIF (v_time_taken < v_prev_time_taken)
+      THEN
+        v_status := 'Increased';
+      ELSE
+        v_status := 'No change';
+      END IF;
+    END IF;
+
+    --Now I get the explain plan to give me some values for statistical use
+    execute immediate 'explain plan for '||v_query||'';
+    SELECT max(plan_id) INTO v_plan_id FROM plan_table;
+
+    INSERT INTO query_perf(scan_id, query_id, table_name, operation_performed, rows_accessed, bytes, date_generated, time_executed, time_completed, time_taken, status)
+      (select v_scan_id, v_q_id, --object_name,
+              SubStr(object_alias, 1, InStr(object_alias, '@')-1),
+              operation ||' '||options ||' WHERE '|| filter_predicates,
+              Count(*),
+              bytes,
+              SYSDATE,
+              v_time_ex,
+              v_time_com,
+              v_time_taken,
+              v_status
+      from plan_table
+      where plan_id = v_plan_id
+      AND object_name IS NOT null);
+
+      COMMIT;
+
+      --This section is used to generate information about the db in general
+      --Remove values to prevent errors
+      EXECUTE IMMEDIATE 'TRUNCATE TABLE DB_PLAN';
+      SELECT Sum(s.bytes) INTO v_used FROM dba_segments s;
+
+      --Calculations and values tabe from the dba_data tables
+      --Calculations are performed to get the reuslts in GB form and are then inserted into db_perf, the db_plan table on the central database
+      INSERT INTO db_plan(scan_id, query_id, total_size, free_space, space_used, perc, scandate)
+      VALUES (v_scan_id, v_q_id,
+          (SELECT Round(Sum(ddf.bytes / (1024*1024*1024)), 4) FROM dba_data_files ddf),
+          (SELECT Round(Sum(dfs.bytes / (1024*1024*1024)), 4) FROM dba_free_space dfs),
+          (SELECT Round(Sum(s.bytes / (1024*1024*1024)), 4) FROM dba_segments s),
+          (SELECT Round(Sum(DISTINCT bytes / (1024*1024*1024)), 4) FROM query_perf WHERE query_id = v_q_id AND scan_id = v_scan_id),
+          sysdate);
+
+      INSERT INTO db_perf (SELECT * FROM db_plan);
+
+      COMMIT;
+
+    ELSE
+      delete from query_list where query_id = v_q_id;
+    END IF;
+
+
+
+  END;
+  /
+
+    SELECT Max(scan_id) INTO v_scan_id FROM query_perf;
+    IF v_scan_id > 0
+      THEN
+        v_scan_id := v_scan_id + 1;
+    ELSE
+      v_scan_id := 1;
+    END IF;
+
+    SELECT extract (HOUR FROM systimestamp) INTO v_ex_hr FROM dual;
+    SELECT extract (MINUTE FROM systimestamp) INTO v_ex_m FROM dual;
+    SELECT extract (SECOND FROM systimestamp) INTO v_ex_s FROM dual;
+    SELECT ''||v_ex_hr||':'||v_ex_m||':'||v_ex_s||'' INTO v_time_ex FROM dual;
+    Dbms_Output.put_line('time before: '||v_time_ex);
+
+    EXECUTE IMMEDIATE v_query;
+
+    SELECT extract (HOUR FROM systimestamp) INTO v_co_hr FROM dual;
+    SELECT extract (MINUTE FROM systimestamp) INTO v_co_m FROM dual;
+    SELECT extract (SECOND FROM systimestamp) INTO v_co_s FROM dual;
+
+    SELECT ''||v_co_hr||':'||v_co_m||':'||v_co_s||'' INTO v_time_com FROM dual;
+    SELECT ''||Sum(v_co_hr - v_ex_hr)||''||Sum(v_co_m - v_ex_m)||''||Sum(v_co_s - v_ex_s)||'' INTO v_time_taken FROM dual;
+    v_time_taken := (v_time_taken * 1000);
+
+    SELECT Count(scan_id) INTO v_flag FROM query_perf WHERE query_id = v_q_id;
+    IF (v_flag = 0)
+    THEN
+      v_status := 'No change';
+    ELSE
+      SELECT Max(scan_id) INTO v_prev_scan_id FROM query_perf WHERE query_id = v_q_id AND scan_id != v_scan_id;
+      SELECT time_taken INTO v_prev_time_taken FROM query_perf WHERE scan_id = v_prev_scan_id;
+
+      IF (v_time_taken > v_prev_time_taken)
+      THEN
+        v_status := 'Decreased';
+      ELSIF (v_time_taken < v_prev_time_taken)
+      THEN
+        v_status := 'Increased';
+      ELSE
+        v_status := 'No change';
+      END IF;
+    END IF;
+
+    execute immediate 'explain plan for '||v_query||'';
+    SELECT max(plan_id) INTO v_plan_id FROM plan_table;
+
+    INSERT INTO query_perf(scan_id, query_id, table_name, operation_performed, rows_accessed, bytes, date_generated, time_executed, time_completed, time_taken, status)
+      (select v_scan_id, v_q_id, --object_name,
+              SubStr(object_alias, 1, InStr(object_alias, '@')-1),
+              operation ||' '||options ||' WHERE '|| filter_predicates,
+              cardinality, bytes,
+              SYSDATE,
+              v_time_ex,
+              v_time_com,
+              v_time_taken,
+              v_status
+      from plan_table
+      where plan_id = v_plan_id
+      AND object_name IS NOT null);
+
+      COMMIT;
+
+      EXECUTE IMMEDIATE 'TRUNCATE TABLE DB_PLAN';
+      SELECT Sum(s.bytes) INTO v_used FROM dba_segments s;
+
+      INSERT INTO db_plan(scan_id, query_id, total_size, free_space, space_used, perc, scandate)
+      VALUES (v_scan_id, v_q_id,
+          (SELECT Round(Sum(ddf.bytes / (1024*1024*1024)), 4) FROM dba_data_files ddf),
+          (SELECT Round(Sum(dfs.bytes / (1024*1024*1024)), 4) FROM dba_free_space dfs),
+          (SELECT Round(Sum(s.bytes / (1024*1024*1024)), 4) FROM dba_segments s),
+          (SELECT Round(Sum(DISTINCT bytes / (1024*1024*1024)), 4) FROM query_perf WHERE query_id = v_q_id AND scan_id = v_scan_id),
+          sysdate);
+
+      INSERT INTO db_perf (SELECT * FROM db_plan);
+
+      COMMIT;
+
+  END;
+  /
+

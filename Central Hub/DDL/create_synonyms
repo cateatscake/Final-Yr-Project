@@ -1,0 +1,15 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+CREATE SYNONYM index_drop_check FOR index_drop_check@client;
+--CREATE SYNONYM index_check FOR index_check@client;
+CREATE SYNONYM gen_perf FOR generate_plan@client;
+CREATE SYNONYM drop_index FOR index_drop@client;
+CREATE SYNONYM cl_tab_cols FOR user_tab_columns@client;
+CREATE SYNONYM dba_free_space_100 FOR dba_free_space@client;
+CREATE SYNONYM dba_data_files_100 FOR dba_data_files@client;
+CREATE SYNONYM cl_proc FOR cl_perf@client;
+CREATE SYNONYM cl_ind_cols FOR user_ind_columns@client
+CREATE SYNONYM cl_cons FOR user_constraints@client;
+CREATE SYNONYM add_index FOR add_index@client;

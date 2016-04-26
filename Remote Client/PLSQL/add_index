@@ -1,0 +1,41 @@
+--Author: Grace Sutton
+--C12408218
+--06/04/2016
+
+PROMPT CREATE OR REPLACE PROCEDURE add_index
+--Procedure to create a query
+--Input is all input through the web application
+CREATE OR REPLACE PROCEDURE add_index(p_index_name IN VARCHAR2, p_table_name IN VARCHAR2, p_index_type IN VARCHAR2, p_cols IN VARCHAR2, p_parent_table IN VARCHAR2, p_parent_cols IN VARCHAR2)
+IS
+  v_index_name VARCHAR2(50) := p_index_name;
+  v_table_name VARCHAR2(50) := p_table_name;
+  v_index_type VARCHAR2(2) := Upper(p_index_type);
+  v_cols VARCHAR2(500) := p_cols;
+  v_parent_table VARCHAR2(50) := p_parent_table;
+  v_parent_cols VARCHAR2(500) := p_parent_cols;
+  v_count INTEGER;
+
+  BEGIN
+
+  --The columns taken from applicaton are in a : seperated string instead of a , seperated string
+  --This function replaces : with , if there are any present
+  SELECT REPLACE(v_cols, ':', ', ') INTO v_cols FROM dual;
+  SELECT REPLACE(v_parent_cols, ':', ', ') INTO v_parent_cols FROM dual;
+
+  --If the user chose Primary key type
+  IF (v_index_type = 'PK')
+  THEN
+    EXECUTE IMMEDIATE 'ALTER TABLE '||v_table_name||' ADD CONSTRAINT '||v_index_name||' PRIMARY KEY ('||v_cols||')';
+  --There are more parameters needed for Foreign key type
+  ELSIF (v_index_type = 'FK')
+  THEN
+    EXECUTE IMMEDIATE 'ALTER TABLE '||v_table_name||' ADD CONSTRAINT '||v_index_name||' FOREIGN KEY '||v_cols||' REFERENCES '||v_parent_table||' ('||v_parent_cols||')';
+  ELSIF (v_index_type = 'I')
+  THEN
+    EXECUTE IMMEDIATE 'CREATE INDEX '||v_index_name||' ON '||v_table_name||' ('||v_cols||')'
+  END IF;
+
+  COMMIT;
+END;
+/
+
