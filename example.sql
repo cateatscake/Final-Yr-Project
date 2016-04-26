@@ -1,1 +1,0 @@
-select SYSDATE from dual;
